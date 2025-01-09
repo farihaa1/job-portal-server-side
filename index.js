@@ -37,19 +37,63 @@ async function run() {
       .db("Job-Portal")
       .collection("job_Applications_collection");
 
+
+
+      app.post("/jwt", async (req, res) => {
+        const user = req.body;
+        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '5h'});
+  
+        res
+          .cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          })
+  
+          .send({ success: true });
+      });
+
     app.get("/jobs", async (req, res) => {
-      const cursor = jobsCollection.find();
+
+      const email = req.body.email;
+      const sort = req.query?.sort;
+      const search = req.query?.search;
+      const min = req.query?.min;
+      const max = req.query?.max;
+  
+      let query = {};
+      let sortQuery = {};
+      if(sort == "true"){
+        sortQuery={"salaryRange.min": -1}
+      }
+      if(search){
+        query.location = { $regex: search, $options: "i" };
+
+      }
+      // console.log(salaryRange)
+      if(email){
+        query = {hr_email: email}
+      }
+
+      if(min && max){
+        query= {
+          ...query,
+          "salaryRange.min": {$gte:parseInt(min)},
+          "salaryRange.max": {$lte:parseInt(max)},
+        }
+      }
+
+
+      const cursor = jobsCollection.find(query).sort(sortQuery);
       const result = await cursor.toArray();
       res.send(result);
     });
 
-
-app.post("/jobs", async(req, res)=>{
-  const newJob=req.body;
-  const result = await jobsCollection.insertOne(newJob)
-  res.send(result)
-})
-
+    app.post("/jobs", async (req, res) => {
+      const newJob = req.body;
+      const result = await jobsCollection.insertOne(newJob);
+      res.send(result);
+    });
 
 
     app.get("/jobs/:id", async (req, res) => {
